@@ -1,0 +1,62 @@
+(ns hero.input.keys
+  (:require [clojure.set :as set])
+  (:import [goog.events KeyCodes]))
+
+(def key-codes (js->clj KeyCodes))
+(def code-keys (set/map-invert key-codes))
+
+(def a (key-codes "A"))
+(def b (key-codes "B"))
+(def c (key-codes "C"))
+(def d (key-codes "D"))
+(def e (key-codes "E"))
+(def f (key-codes "F"))
+(def g (key-codes "G"))
+(def h (key-codes "H"))
+(def i (key-codes "I"))
+(def j (key-codes "J"))
+(def k (key-codes "K"))
+(def l (key-codes "L"))
+(def m (key-codes "M"))
+(def n (key-codes "N"))
+(def o (key-codes "O"))
+(def p (key-codes "P"))
+(def q (key-codes "Q"))
+(def r (key-codes "R"))
+(def s (key-codes "S"))
+(def t (key-codes "T"))
+(def u (key-codes "U"))
+(def v (key-codes "V"))
+(def w (key-codes "W"))
+(def x (key-codes "X"))
+(def y (key-codes "Y"))
+(def z (key-codes "Z"))
+(def d0 (key-codes "0"))
+(def d1 (key-codes "1"))
+(def d2 (key-codes "2"))
+(def d3 (key-codes "3"))
+(def d4 (key-codes "4"))
+(def d5 (key-codes "5"))
+(def d6 (key-codes "6"))
+(def d7 (key-codes "7"))
+(def d8 (key-codes "8"))
+(def d9 (key-codes "9"))
+
+(def ctrl (key-codes "CTRL"))
+(def left (key-codes "LEFT"))
+(def right (key-codes "RIGHT"))
+(def up (key-codes "UP"))
+(def down (key-codes "DOWN"))
+
+(def space (key-codes "SPACE"))
+(def slash (key-codes "SLASH"))
+(def backslash (key-codes "BACKSLASH"))
+(def plus (key-codes "PLUS_SIGN"))
+
+(comment
+ (keys key-codes)
+
+
+
+ )
+
