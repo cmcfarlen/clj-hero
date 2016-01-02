@@ -21,7 +21,6 @@
                oin)
               (if-let [i (nth inputs idx nil)]
                 (do
-                 (println "playback" idx)
                  (swap! history update-in [:idx] inc)
                  i)
                 (do
@@ -32,12 +31,10 @@
             (if (and (pressed keys/r)
                      (down keys/ctrl))
               (do
-               (println "playback!")
                (reset! world-atom state)
                (swap! history assoc :idx 1)
                (first inputs))
               (do
-               (println "recording " (count inputs))
                (swap! history update-in [:inputs] conj oin)
                oin))))
         (do
