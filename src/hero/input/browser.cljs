@@ -76,7 +76,7 @@
           wheel-delta [(- nwx owx) (- nwy owy) (- nwz owz)]
           mouse-down (:buttons next-mouse-state)
           mouse-was-down (:buttons last-mouse-state)
-          Δt (- ts last-ts)]
+          Δt (/ (- ts last-ts) 1000.0)]
       (swap! platform-state assoc :last-keystate next-keystate :last-mouse-state next-mouse-state :last-ts ts)
       {:keys {:down is-down
               :pressed (clojure.set/difference is-down was-down)

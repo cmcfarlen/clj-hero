@@ -43,6 +43,7 @@
 (def d9 (key-codes "9"))
 
 (def ctrl (key-codes "CTRL"))
+(def shift (key-codes "SHIFT"))
 (def left (key-codes "LEFT"))
 (def right (key-codes "RIGHT"))
 (def up (key-codes "UP"))
