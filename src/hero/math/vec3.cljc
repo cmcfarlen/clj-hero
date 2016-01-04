@@ -7,7 +7,7 @@
   (scale [a s] "Scale by the scalar s")
   (dot [a b] "Dot product")
   (normalize [a] "return a unit vector in the same direction as a")
-  (magnitude [a] "return the length of a")
+  (magnitude [a] [a m] "return the length of a or return a vector with the magnitude in the same direction as a")
   (multiply [a b] "pointwise product")
   (cross [a b] "vector cross product"))
 
@@ -28,8 +28,14 @@
   (normalize [[x y z :as a]]
     (let [m (magnitude a)]
       [(/ x m) (/ y m) (/ z m)]))
-  (magnitude [[x y z]]
-    (math/sqrt (+ (* x x) (* y y) (* z z))))
+  (magnitude
+    ([[x y z]]
+     (math/sqrt (+ (* x x) (* y y) (* z z))))
+    ([a m]
+     (let [mag (magnitude a)]
+       (if (= mag 0)
+         a
+         (scale a (/ m mag))))))
   (multiply [[ax ay az] [bx by bz]]
     [(* ax bx) (* ay by) (* az bz)])
   (cross [[ax ay az] [bx by bz]]

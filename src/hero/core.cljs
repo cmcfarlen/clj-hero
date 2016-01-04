@@ -41,8 +41,7 @@
   (get-in world [:chunks chunk-p]))
 
 (defn world-chunk
-  [[chunk-x chunk-y chunk-z :as loc]]
-  )
+  [[chunk-x chunk-y chunk-z :as loc]])
 
 (defn world-spawn-entity
   [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
@@ -98,6 +97,17 @@
   (println entity)
   (update-in entity [:world/position 1] vec3/add delta))
 
+(defn world-accellerate-entity
+  "entity acceleration"
+  [entity world Δt a]
+  (let [v (entity :world/velocity [0 0 0])
+        a (vec3/add a (vec3/scale v -8.0))]
+    (-> entity
+        (update-in [:world/position 1] vec3/add (vec3/add
+                                                 (vec3/scale a (* 0.5 Δt Δt))
+                                                 (vec3/scale v Δt)))
+        (update-in [:world/velocity] (fnil vec3/add [0 0 0]) (vec3/scale a Δt)))))
+
 (defn game-init
   []
   (-> (world-create [10 10 10])
@@ -109,24 +119,31 @@
                                                  [0 0 (/ 1920 2) (/ 1080 2)]))))) 
 (defonce game-state (atom (game-init)))
 
+(comment
+ (vec3/magnitude [0 0 0] 50)
+
+ (world-update-entity @game-state :player world-accellerate-entity 0.016 [0 0 0])
+ )
+
 (defn game-update
   [world input]
   (let [down (-> input :keys :down)
-        mouse-down (-> input :mouse :down)]
-    (let [v (* (if (down keys/shift)
-                 12.5171
-                 1.400) (-> input :Δt))]
-      (cond-> world
-        (down keys/a)
-        (world-update-entity :player world-move-entity-by [(- v) 0 0])
-        (down keys/d)
-        (world-update-entity :player world-move-entity-by [v 0 0])
-        (down keys/s)
-        (world-update-entity :player world-move-entity-by [0 (- v) 0])
-        (down keys/w)
-        (world-update-entity :player world-move-entity-by [0 v 0])
-        (mouse-down 0)
-        (world-update-entity :camera camera-pan (-> input :mouse :Δp))))))
+        mouse-down (-> input :mouse :down)
+        acc (cond-> [0 0 0]
+              (down keys/a)
+              (vec3/add [-1 0 0])
+              (down keys/d)
+              (vec3/add [1 0 0])
+              (down keys/s)
+              (vec3/add [0 -1 0])
+              (down keys/w)
+              (vec3/add [0 1 0]))
+        acc (vec3/magnitude acc (if (down keys/shift)
+                                  500.0
+                                  50.0))]
+    (cond-> (world-update-entity world :player world-accellerate-entity (-> input :Δt) acc)
+      (mouse-down 0)
+      (world-update-entity :camera camera-pan (-> input :mouse :Δp)))))
 
 (defn setup-viewport
   [ctx {:keys [camera/viewport camera/origin camera/scale] :as cam}]
