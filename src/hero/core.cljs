@@ -11,23 +11,20 @@
 
 (defn camera-setup
   "Setup the camera with an origin, viewable width and height and a viewport"
-  [[x y w h] [vx vy vw vh]]
+  [entity [x y w h] [vx vy vw vh]]
   (let [aspect-ratio (/ vw vh)
         h' (/ w aspect-ratio)
         sw (/ vw w)
         sh (/ vh h')]
     (println [sw sh] "h'" h')
-    {:viewport [vx vy vw vh]
-     :origin [x y]
-     :scale [sw sh]}))
+    (assoc entity
+           :camera/viewport [vx vy vw vh]
+           :camera/origin [x y]
+           :camera/scale [sw sh])))
 
 (defn camera-pan
-  [cam [x y]]
-  (update-in cam [:origin] (fn [[cx cy]] [(+ cx x) (+ cy y)])))
-
-(defn entity-ref
-  [entity]
-  (:entity/id entity))
+  [cam _ [x y]]
+  (update-in cam [:camera/origin] (fn [[cx cy]] [(+ cx x) (+ cy y)])))
 
 (defn entity
   [id]
@@ -48,14 +45,14 @@
   )
 
 (defn world-spawn-entity
-  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] entity]
+  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
   (-> world
       (update-in [:chunks chunk-p] (fn [chunk]
                                      (if chunk
-                                       (update-in chunk [:entities] conj (entity-ref entity))
+                                       (update-in chunk [:entities] conj id)
                                        {:chunk-pos chunk-p
-                                        :entities #{(entity-ref entity)}})))
-      (assoc-in [:entities (entity-ref entity)] (assoc entity :world/position world-pos))))
+                                        :entities #{id}})))
+      (assoc-in [:entities id] (assoc entity :world/position world-pos))))
 
 (defn fixup-chunk-offset
   [rel dim]
@@ -85,34 +82,32 @@
         (update-in [:entities entity-id] assoc :world/position new-position))))
 
 (defn world-update-entity
+  "Update an entity in the world.  f is a fn that takes the entity, the world and any arguments"
   [world entity-id f & args]
   (-> world
-      (update-in [:entities entity-id] #(apply f % args))
+      (update-in [:entities entity-id] #(apply f % world args))
       (world-rechunk-entity entity-id)))
+
+(defn world-entity
+  [world entity-id]
+  (get-in world [:entities entity-id]))
+
+(defn world-move-entity-by
+  "Move an entity in world position by the given vec3 delta."
+  [entity world delta]
+  (println entity)
+  (update-in entity [:world/position 1] vec3/add delta))
 
 (defn game-init
   []
-  {:camera (camera-setup [0.0 0.0 50.0 50.0] [0 0 (/ 1920 2) (/ 1080 2)])
-   :world (-> (world-create [10 10 10])
-              (world-spawn-entity [[2 3 0] [5 5 2]] (entity 41))
-              (world-spawn-entity [[1 3 0] [2 2 2]] (entity 42)))
-   :thing {:p [25 25]}})
-
+  (-> (world-create [10 10 10])
+      (world-spawn-entity [[0 0 0] [5 5 2]] (entity :player))
+      (world-spawn-entity [[1 0 0] [2 2 2]] (entity 42))
+      (world-spawn-entity [[0 0 0] [0 0 0]] (-> (entity :camera)
+                                                (camera-setup
+                                                 [0.0 0.0 50.0 50.0]
+                                                 [0 0 (/ 1920 2) (/ 1080 2)]))))) 
 (defonce game-state (atom (game-init)))
-
-(comment
- (-> (world-create [10 10 10])
-     (world-spawn-entity [[0 0 0] [2 2 2]] (entity 42))
-     )
-
- (-> (deref game-state) :world :entities (get 42) :world/position (get 1))
-
- (swap! game-state update-in [:world] world-update-entity 42 update-in [:world/position 1] vec3/add [10 22 30])
-
- (world-update-entity (-> @game-state :world) 42 update-in [:world/position 1] vec3/add [10 22 30])
-
- )
-
 
 (defn game-update
   [world input]
@@ -123,31 +118,18 @@
                  1.400) (-> input :Δt))]
       (cond-> world
         (down keys/a)
-        (update-in [:thing :p] vec2/add [(- v) 0])
+        (world-update-entity :player world-move-entity-by [(- v) 0 0])
         (down keys/d)
-        (update-in [:thing :p] vec2/add [v 0])
+        (world-update-entity :player world-move-entity-by [v 0 0])
         (down keys/s)
-        (update-in [:thing :p] vec2/add [0 (- v)])
+        (world-update-entity :player world-move-entity-by [0 (- v) 0])
         (down keys/w)
-        (update-in [:thing :p] vec2/add [0 v])
+        (world-update-entity :player world-move-entity-by [0 v 0])
         (mouse-down 0)
-        (update-in [:camera] camera-pan (-> input :mouse :Δp))
-        ))
-
-    ))
-
-(comment
- (vec2/add [25 25] [0 0.5])
-
- (-> 102.423
-     (/ 10.0)
-     #_((.-floor js/Math))
-     )
-
- )
+        (world-update-entity :camera camera-pan (-> input :mouse :Δp))))))
 
 (defn setup-viewport
-  [ctx {:keys [viewport origin scale] :as cam}]
+  [ctx {:keys [camera/viewport camera/origin camera/scale] :as cam}]
   (let [[ox oy] origin
         [sx sy] scale]
 
@@ -159,16 +141,16 @@
 (defn game-render
   [ctx world]
   (let [canvas (.-canvas ctx)
+        camera (world-entity world :camera)
         width (.-width canvas)
         height (.-height canvas)
-        [scale-x scale-y] (-> world :camera :scale)
-        ]
+        [scale-x scale-y] (:camera/scale camera)]
     (.resetTransform ctx)
 
     (set! (.-fillStyle ctx) "#aaa")
     (.fillRect ctx 0 0 width height)
 
-    (setup-viewport ctx (:camera world))
+    (setup-viewport ctx camera)
 
     (set! (.-strokeStyle ctx) "red")
     (set! (.-lineWidth ctx) (/ 1.0 scale-x))
@@ -183,22 +165,18 @@
     (.lineTo ctx 1000 0)
     (.stroke ctx)
 
-    (let [[cw ch] (-> world :world :chunk-dim)]
+    (let [[cw ch] (-> world :chunk-dim)]
       ;; draw chunks as rects
-      (doseq [[cx cy cz] (-> world :world :chunks keys)]
+      (doseq [[cx cy cz] (-> world :chunks keys)]
         (set! (.-strokeStyle ctx) "lightgray")
         (.strokeRect ctx (* cw cx) (* ch cy) cw ch))
       ;; draw the entities as dots
-      (doseq [e (-> world :world :entities vals)]
+      (doseq [e (-> world :entities vals)]
         (let [[[cx cy] [x y z]] (:world/position e)]
           (set! (.-fillStyle ctx) "#00b")
           (.beginPath ctx)
           (.arc ctx (+ (* cw cx) x) (+ (* ch cy) y) 0.5 0 (* 2 (.-PI js/Math)))
-          (.fill ctx))))
-
-    (set! (.-fillStyle ctx) "#000")
-    (let [[x y] (-> world :thing :p)]
-      (.fillRect ctx x y 0.4 1.4))))
+          (.fill ctx))))))
 
 (def game-context (.getContext (.getElementById js/document "game") "2d"))
 

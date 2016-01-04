@@ -1,7 +1,5 @@
 (ns hero.math.vec2
-  (:require [hero.math.core :as math])
-  )
-
+  (:require [hero.math.core :as math]))
 
 (defprotocol Vector2
   (add [a b] "Add vectors")
@@ -10,7 +8,6 @@
   (dot [a b] "Dot product")
   (normalize [a] "return a unit vector in the same direction as a")
   (magnitude [a] "return the length of a"))
-
 
 (extend-protocol Vector2
   #?(:clj clojure.lang.PersistentVector
@@ -29,5 +26,6 @@
       [(/ x m) (/ y m)]))
   (magnitude [[x y]]
     (math/sqrt (+ (* x x) (* y y)))))
+
 
 ;; TODO - support float arrays
