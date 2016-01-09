@@ -1,4 +1,6 @@
-(ns hero.math.core)
+(ns hero.math.core
+  (:refer-clojure :exclude [zero?])
+  )
 
 (def sqrt #? (:cljs (.-sqrt js/Math)
               :clj (fn [x] (Math/sqrt x))))
@@ -24,8 +26,21 @@
 (def acos #? (:cljs (.-acos js/Math)
               :clj (fn [x] (Math/acos x))))
 
+(def atan2 #? (:cljs (.-atan2 js/Math)
+               :clj (fn [x] (Math/atan2 x))))
+
+(def π #? (:cljs (.-PI js/Math)
+           :clj Math/PI))
+
+(def τ (* 2 π))
+
+
 (defn f=
   ([a b]
    (<= (abs (- a b)) 0.0000001))
   ([a b e]
    (<= (abs (- a b)) e)))
+
+(defn zero?
+  [v]
+  (<= (abs v) 0.0000001))

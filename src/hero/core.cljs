@@ -4,7 +4,8 @@
             [hero.input.keys :as keys]
             [hero.math.vec2 :as vec2]
             [hero.math.vec3 :as vec3]
-            [hero.math.core :as math])
+            [hero.math.core :as math :refer [π τ]]
+            [hero.world.core :as world])
   (:import [goog.events KeyCodes]))
 
 (enable-console-print!)
@@ -26,103 +27,23 @@
   [cam _ [x y]]
   (update-in cam [:camera/origin] (fn [[cx cy]] [(+ cx x) (+ cy y)])))
 
-(defn entity
-  [id]
-  {:entity/id id})
 
-(defn world-create
-  [[dim-x dim-y dim-z :as dim]]
-  {:chunk-dim dim
-   :chunks {}
-   :entities {}})
-
-(defn world-get-chunk
-  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z] :as world-pos]]
-  (get-in world [:chunks chunk-p]))
-
-(defn world-chunk
-  [[chunk-x chunk-y chunk-z :as loc]])
-
-(defn world-spawn-entity
-  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
-  (-> world
-      (update-in [:chunks chunk-p] (fn [chunk]
-                                     (if chunk
-                                       (update-in chunk [:entities] conj id)
-                                       {:chunk-pos chunk-p
-                                        :entities #{id}})))
-      (assoc-in [:entities id] (assoc entity :world/position world-pos))))
-
-(defn fixup-chunk-offset
-  [rel dim]
-  (math/floor (/ rel dim)))
-
-(defn recanonicalize-position
-  [[[chunk-x chunk-y chunk-z :as old-chunk] [rel-x rel-y rel-z :as old-rel] :as old-position] [dim-x dim-y dim-z :as dim]]
-  (let [offsets [(fixup-chunk-offset rel-x dim-x) (fixup-chunk-offset rel-y dim-y) (fixup-chunk-offset rel-z dim-z)]]
-    [(vec3/add old-chunk offsets) (vec3/subtract old-rel (vec3/multiply offsets dim))]))
-
-(comment
- (recanonicalize-position [[5 5 5] [-0.245 0.456 20.432]] [10 10 10])
- (fixup-chunk-offset -0.245 10)
- )
-
-(defn world-rechunk-entity
-  [world entity-id]
-  (let [old-position (-> world :entities (get entity-id) :world/position)
-        new-position (recanonicalize-position old-position (:chunk-dim world))]
-    (-> world
-        (update-in [:chunks (first old-position) :entities] disj entity-id)
-        (update-in [:chunks (first new-position)] (fn [chunk]
-                                                    (if chunk
-                                                      (update-in chunk [:entities] conj entity-id)
-                                                      {:chunk-pos (first new-position)
-                                                       :entities #{entity-id}})))
-        (update-in [:entities entity-id] assoc :world/position new-position))))
-
-(defn world-update-entity
-  "Update an entity in the world.  f is a fn that takes the entity, the world and any arguments"
-  [world entity-id f & args]
-  (-> world
-      (update-in [:entities entity-id] #(apply f % world args))
-      (world-rechunk-entity entity-id)))
-
-(defn world-entity
-  [world entity-id]
-  (get-in world [:entities entity-id]))
-
-(defn world-move-entity-by
-  "Move an entity in world position by the given vec3 delta."
-  [entity world delta]
-  (println entity)
-  (update-in entity [:world/position 1] vec3/add delta))
-
-(defn world-accellerate-entity
-  "entity acceleration"
-  [entity world Δt a]
-  (let [v (entity :world/velocity [0 0 0])
-        a (vec3/add a (vec3/scale v -8.0))]
-    (-> entity
-        (update-in [:world/position 1] vec3/add (vec3/add
-                                                 (vec3/scale a (* 0.5 Δt Δt))
-                                                 (vec3/scale v Δt)))
-        (update-in [:world/velocity] (fnil vec3/add [0 0 0]) (vec3/scale a Δt)))))
 
 (defn game-init
   []
-  (-> (world-create [10 10 10])
-      (world-spawn-entity [[0 0 0] [5 5 2]] (entity :player))
-      (world-spawn-entity [[1 0 0] [2 2 2]] (entity 42))
-      (world-spawn-entity [[0 0 0] [0 0 0]] (-> (entity :camera)
-                                                (camera-setup
-                                                 [0.0 0.0 50.0 50.0]
-                                                 [0 0 (/ 1920 2) (/ 1080 2)]))))) 
+  (-> (world/create [10 10 10])
+      (world/spawn [[0 0 0] [5 5 2]] (world/entity :player))
+      (world/spawn [[1 0 0] [2 2 2]] (world/entity 42))
+      (world/spawn [[0 0 0] [0 0 0]] (-> (world/entity :camera)
+                                         (camera-setup
+                                          [0.0 0.0 50.0 50.0]
+                                          [0 0 (/ 1920 2) (/ 1080 2)]))))) 
 (defonce game-state (atom (game-init)))
 
 (comment
- (vec3/magnitude [0 0 0] 50)
+ (vec3/magnitude [1 0 0] 50)
 
- (world-update-entity @game-state :player world-accellerate-entity 0.016 [0 0 0])
+ (world/update-entity @game-state :player world/accellerate-entity 0.016 [0 0 0])
  )
 
 (defn game-update
@@ -141,11 +62,11 @@
         acc (vec3/magnitude acc (if (down keys/shift)
                                   500.0
                                   50.0))]
-    (cond-> (world-update-entity world :player world-accellerate-entity (-> input :Δt) acc)
+    (cond-> (world/update-entity world :player world/accellerate-entity (-> input :Δt) acc)
       (mouse-down 0)
-      (world-update-entity :camera camera-pan (-> input :mouse :Δp)))))
+      (world/update-entity :camera camera-pan (-> input :mouse :Δp)))))
 
-(defn setup-viewport
+(defn setup-viewport!
   [ctx {:keys [camera/viewport camera/origin camera/scale] :as cam}]
   (let [[ox oy] origin
         [sx sy] scale]
@@ -155,45 +76,136 @@
   (.scale ctx sx (- sy))))
 
 
+(defn line-width!
+  [ctx w]
+  (set! (.-lineWidth ctx) w)
+  ctx)
+
+(defn stroke-color!
+  [ctx color]
+  (set! (.-strokeStyle ctx) color)
+  ctx)
+
+(defn stroke-style!
+  [ctx style]
+  (set! (.-strokeStyle ctx) style)
+  ctx)
+
+(defn stroke-rect!
+  [ctx x y w h]
+  (.strokeRect ctx x y w h)
+  ctx)
+
+(defn line!
+  [ctx [x0 y0] [x1 y1]]
+  (.beginPath ctx)
+  (.moveTo ctx x0 y0)
+  (.lineTo ctx x1 y1)
+  (.stroke ctx)
+  ctx)
+
+(defn axis!
+  [ctx]
+  (-> ctx
+      (stroke-color! "red")
+      (line! [0 -1000] [0 1000])
+      (stroke-color! "blue")
+      (line! [-1000 0] [1000 0])))
+
+(defn fill-style!
+  [ctx style]
+  (set! (.-fillStyle ctx) style)
+  ctx)
+
+(defn fill-rect!
+  [ctx x y w h]
+  (.fillRect ctx x y w h)
+  ctx)
+
+(defn fill-circle!
+  [ctx cx cy r]
+  (.beginPath ctx)
+  (.arc ctx cx cy r 0 τ)
+  (.fill ctx)
+  ctx)
+
+(defn vector!
+  [ctx p v]
+  ; TODO: project onto XY plane
+  (let [r (math/atan2 (v 1) (v 0))
+        m (vec3/magnitude v)]
+    (.save ctx)
+    (.translate ctx (p 0) (p 1))
+    (.rotate ctx r)
+    (.beginPath ctx)
+    (.moveTo ctx 0 0)
+    (.lineTo ctx m 0)
+    (.translate ctx m 0)
+    (.moveTo ctx -0.25 -0.25)
+    (.lineTo ctx 0 0)
+    (.lineTo ctx -0.25 0.25)
+    (.stroke ctx)
+    (.restore ctx))
+  ctx)
+
 (defn game-render
   [ctx world]
   (let [canvas (.-canvas ctx)
-        camera (world-entity world :camera)
+        camera (world/get-entity world :camera)
         width (.-width canvas)
         height (.-height canvas)
         [scale-x scale-y] (:camera/scale camera)]
     (.resetTransform ctx)
 
-    (set! (.-fillStyle ctx) "#aaa")
-    (.fillRect ctx 0 0 width height)
+    (-> ctx
+        (fill-style! "#aaa")
+        (fill-rect! 0 0 width height))
 
-    (setup-viewport ctx camera)
+    (setup-viewport! ctx camera)
 
-    (set! (.-strokeStyle ctx) "red")
-    (set! (.-lineWidth ctx) (/ 1.0 scale-x))
-    (.beginPath ctx)
-    (.moveTo ctx 0 -1000)
-    (.lineTo ctx 0 1000)
-    (.stroke ctx)
+    (-> ctx
+        (line-width! (/ 1.0 scale-x))
+        (axis!))
 
-    (set! (.-strokeStyle ctx) "blue")
-    (.beginPath ctx)
-    (.moveTo ctx -1000 0)
-    (.lineTo ctx 1000 0)
-    (.stroke ctx)
+    (comment (let [vs [[1 0 0]
+              [1 1 0]
+              [0 1 0]
+              [-1 1 0]
+              [-1 0 0]
+              [-1 -1 0]
+              [0 -1 0]
+              [1 -1 0]]]
+      (stroke-style! ctx "blue")
+      (doseq [v (map #(vec3/magnitude % 5) vs)]
+        (vector! ctx [8 5 0] v)
+        )
+      )
+
+    (stroke-style! ctx "blue")
+    (vector! ctx [2 3 0] [1 0 0])
+    (stroke-style! ctx "red")
+    (vector! ctx [2 3 0] [0 1 0])
+    (stroke-style! ctx "green")
+    (vector! ctx [2 3 0] [-1 0 0])
+    (stroke-style! ctx "yellow")
+    (vector! ctx [2 3 0] [0 -1 0]))
 
     (let [[cw ch] (-> world :chunk-dim)]
       ;; draw chunks as rects
       (doseq [[cx cy cz] (-> world :chunks keys)]
-        (set! (.-strokeStyle ctx) "lightgray")
-        (.strokeRect ctx (* cw cx) (* ch cy) cw ch))
+        (-> ctx
+            (stroke-style! "lightgray")
+            (stroke-rect! (* cw cx) (* ch cy) cw ch)))
+
       ;; draw the entities as dots
+      (fill-style! ctx "#00b")
       (doseq [e (-> world :entities vals)]
-        (let [[[cx cy] [x y z]] (:world/position e)]
-          (set! (.-fillStyle ctx) "#00b")
-          (.beginPath ctx)
-          (.arc ctx (+ (* cw cx) x) (+ (* ch cy) y) 0.5 0 (* 2 (.-PI js/Math)))
-          (.fill ctx))))))
+        (let [[[cx cy] [x y z]] (:world/position e)
+              v (:world/velocity e)]
+          (fill-circle! ctx (+ (* cw cx) x) (+ (* ch cy) y) 0.5)
+          (when (and v (not (vec3/zero? v)))
+            (vector! ctx [(+ (* cw cx) x) (+ (* ch cy) y) 0] v))
+          )))))
 
 (def game-context (.getContext (.getElementById js/document "game") "2d"))
 
