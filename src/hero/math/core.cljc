@@ -27,7 +27,7 @@
               :clj (fn [x] (Math/acos x))))
 
 (def atan2 #? (:cljs (.-atan2 js/Math)
-               :clj (fn [x] (Math/atan2 x))))
+               :clj (fn [y x] (Math/atan2 y x))))
 
 (def π #? (:cljs (.-PI js/Math)
            :clj Math/PI))

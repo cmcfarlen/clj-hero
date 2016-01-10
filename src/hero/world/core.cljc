@@ -12,16 +12,6 @@
    :chunks {}
    :entities {}})
 
-(defn spawn
-  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
-  (-> world
-      (update-in [:chunks chunk-p] (fn [chunk]
-                                     (if chunk
-                                       (update-in chunk [:entities] conj id)
-                                       {:chunk-pos chunk-p
-                                        :entities #{id}})))
-      (assoc-in [:entities id] (assoc entity :world/position world-pos))))
-
 (defn- fixup-chunk-offset
   [rel dim]
   (math/floor (/ rel dim)))
@@ -30,6 +20,17 @@
   [[[chunk-x chunk-y chunk-z :as old-chunk] [rel-x rel-y rel-z :as old-rel] :as old-position] [dim-x dim-y dim-z :as dim]]
   (let [offsets [(fixup-chunk-offset rel-x dim-x) (fixup-chunk-offset rel-y dim-y) (fixup-chunk-offset rel-z dim-z)]]
     [(vec3/add old-chunk offsets) (vec3/subtract old-rel (vec3/multiply offsets dim))]))
+
+(defn spawn
+  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
+  (let [[chunk-p rel-p :as world-pos] (recanonicalize-position world-pos (:chunk-dim world))]
+    (-> world
+        (update-in [:chunks chunk-p] (fn [chunk]
+                                       (if chunk
+                                         (update-in chunk [:entities] conj id)
+                                         {:chunk-pos chunk-p
+                                          :entities #{id}})))
+        (assoc-in [:entities id] (assoc entity :world/position world-pos)))))
 
 (comment
  (recanonicalize-position [[5 5 5] [-0.245 0.456 20.432]] [10 10 10])
@@ -67,6 +68,37 @@
   (println entity)
   (update-in entity [:world/position 1] vec3/add delta))
 
+(defn chunk->scene
+  [[[cx cy cz] [x y z]] [sx sy sz]]
+  ; TODO: vector math here
+  [(+ x (* cx sx))
+   (+ y (* cy sy))
+   (+ z (* cz sz))])
+
+(defn collides?
+  [e w dim]
+  (let [ep (chunk->scene (:world/position e) dim)
+        wp (chunk->scene (:world/position w) dim)
+        l (/ (:wall/length w) 2)
+        n (:wall/n w)
+        v (:world/velocity e)
+        c (vec3/intersect-line-plane wp n ep v)
+        dw (vec3/distance c wp)
+        de (vec3/distance c ep)]
+    (if (and (> 0 (vec3/dot v n)) (< de 0.5) (< dw l))
+      c)))
+
+(defn collide-walls
+  [entity world]
+  (let [dim (:chunk-dim world)]
+    (reduce (fn [e w]
+              (if-let [c (collides? e w dim)]
+                (-> e
+                    (update-in [:world/velocity] vec3/reflect (:wall/n w))
+                    (assoc-in [:world/position 1] (vec3/add c (vec3/scale (:wall/n w) 0.5)))
+                    )
+                e)) entity (filter :wall/n (-> world :entities vals)))))
+
 (defn accellerate-entity
   "entity acceleration"
   [entity world Δt a]
@@ -76,5 +108,6 @@
         (update-in [:world/position 1] vec3/add (vec3/add
                                                  (vec3/scale a (* 0.5 Δt Δt))
                                                  (vec3/scale v Δt)))
-        (update-in [:world/velocity] (fnil vec3/add [0 0 0]) (vec3/scale a Δt)))))
+        (update-in [:world/velocity] (fnil vec3/add [0 0 0]) (vec3/scale a Δt))
+        (collide-walls world))))
 

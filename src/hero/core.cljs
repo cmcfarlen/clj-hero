@@ -28,16 +28,26 @@
   (update-in cam [:camera/origin] (fn [[cx cy]] [(+ cx x) (+ cy y)])))
 
 
+(defn wall
+  [id p n length]
+  (-> (world/entity id)
+      (assoc :wall/p p)
+      (assoc :wall/n (vec3/normalize n))
+      (assoc :wall/length length)))
+
 
 (defn game-init
   []
   (-> (world/create [10 10 10])
-      (world/spawn [[0 0 0] [5 5 2]] (world/entity :player))
-      (world/spawn [[1 0 0] [2 2 2]] (world/entity 42))
+      (world/spawn [[0 0 0] [5 5 0]] (world/entity :player))
+      (world/spawn [[1 0 0] [2 2 0]] (world/entity 42))
       (world/spawn [[0 0 0] [0 0 0]] (-> (world/entity :camera)
                                          (camera-setup
                                           [0.0 0.0 50.0 50.0]
-                                          [0 0 (/ 1920 2) (/ 1080 2)]))))) 
+                                          [0 0 (/ 1920 2) (/ 1080 2)])))
+      (world/spawn [[0 0 0] [3 3 0]] (wall :w1 [3 3 3] [0 1 0] 10))
+      (world/spawn [[0 0 0] [7 7 0]] (wall :w2 [7 7 7] [-1 1 0] 10))
+      )) 
 (defonce game-state (atom (game-init)))
 
 (comment
@@ -148,6 +158,13 @@
     (.restore ctx))
   ctx)
 
+(defn chunk->scene
+  [[[cx cy cz] [x y z]] [sx sy sz]]
+  ; TODO: vector math here
+  [(+ x (* cx sx))
+   (+ y (* cy sy))
+   (+ z (* cz sz))])
+
 (defn game-render
   [ctx world]
   (let [canvas (.-canvas ctx)
@@ -190,22 +207,53 @@
     (stroke-style! ctx "yellow")
     (vector! ctx [2 3 0] [0 -1 0]))
 
-    (let [[cw ch] (-> world :chunk-dim)]
+    (let [[cw ch cz :as cs] (-> world :chunk-dim)]
       ;; draw chunks as rects
       (doseq [[cx cy cz] (-> world :chunks keys)]
         (-> ctx
             (stroke-style! "lightgray")
             (stroke-rect! (* cw cx) (* ch cy) cw ch)))
 
+      ;; draw walls as lines and normals
+
+
       ;; draw the entities as dots
       (fill-style! ctx "#00b")
       (doseq [e (-> world :entities vals)]
-        (let [[[cx cy] [x y z]] (:world/position e)
+        (cond
+         (:wall/n e)
+         (let [p (chunk->scene (:world/position e) cs)
+               n (:wall/n e)
+               v (-> world :entities :player :world/velocity)
+               l (/ (:wall/length e) 2)
+               w (vec3/magnitude (vec3/cross n [0 0 1]) l)]
+           (-> ctx
+             (stroke-style! "white")
+             (vector! p n)
+             (stroke-style! "black")
+             (line! (vec3/subtract p w) (vec3/add p w)))
+           (when (and v
+                      (not (vec3/zero? v))
+                      (> 0 (vec3/dot v n))
+                      )
+             (let [pp (chunk->scene (-> world :entities :player :world/position) cs)
+                   c (vec3/intersect-line-plane p n pp v)
+                   d (vec3/distance c p)]
+               (when (< d l)
+                 (if (< (vec3/distance c pp) 0.5)
+                   (do
+                    (vector! ctx pp (vec3/reflect v n))
+                    (fill-style! ctx "red"))
+                   (fill-style! ctx "green"))
+                 (fill-circle! ctx (c 0) (c 1) 0.25)))))
+
+         :else
+         (let [[[cx cy] [x y z]] (:world/position e)
               v (:world/velocity e)]
           (fill-circle! ctx (+ (* cw cx) x) (+ (* ch cy) y) 0.5)
           (when (and v (not (vec3/zero? v)))
             (vector! ctx [(+ (* cw cx) x) (+ (* ch cy) y) 0] v))
-          )))))
+          ))))))
 
 (def game-context (.getContext (.getElementById js/document "game") "2d"))
 
