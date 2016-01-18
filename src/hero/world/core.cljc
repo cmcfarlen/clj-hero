@@ -95,7 +95,7 @@
               (if-let [c (collides? e w dim)]
                 (-> e
                     (update-in [:world/velocity] vec3/reflect (:wall/n w))
-                    (assoc-in [:world/position 1] (vec3/add c (vec3/scale (:wall/n w) 0.5)))
+                    #_(assoc-in [:world/position 1] (vec3/add c (vec3/scale (:wall/n w) 0.5)))
                     )
                 e)) entity (filter :wall/n (-> world :entities vals)))))
 

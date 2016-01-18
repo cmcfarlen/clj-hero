@@ -75,6 +75,10 @@
   [a b]
   (magnitude (vector a b)))
 
+(defn point-line-distance
+  [line-pt line-dir pt]
+  (let [v (vector line-pt pt)]
+    (component v (normalize line-dir))))
 
 (defn intersect-line-plane
   [p n l d]
