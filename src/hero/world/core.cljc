@@ -81,11 +81,11 @@
         wp (chunk->scene (:world/position w) dim)
         l (/ (:wall/length w) 2)
         n (:wall/n w)
+        d (vec3/point-plane-distance wp n ep)
+        c (vec3/intersect-line-plane wp n ep n)
         v (:world/velocity e)
-        c (vec3/intersect-line-plane wp n ep v)
-        dw (vec3/distance c wp)
-        de (vec3/distance c ep)]
-    (if (and (> 0 (vec3/dot v n)) (< de 0.5) (< dw l))
+        dw (vec3/distance c wp)]
+    (if (and (> 0 (vec3/dot v n)) (< d 0.5) (< dw l))
       c)))
 
 (defn collide-walls

@@ -76,9 +76,18 @@
   (magnitude (vector a b)))
 
 (defn point-line-distance
+  "line-dir needs to be a unit vector"
   [line-pt line-dir pt]
-  (let [v (vector line-pt pt)]
-    (component v (normalize line-dir))))
+  (let [v (vector pt line-pt)
+        c (scale line-dir (dot v line-dir))]
+    (magnitude (subtract v c))))
+
+(defn point-plane-distance
+  "Return the distance between the plane given by point p and unit normal n and a point x.
+  point normal form (normal must be a unit vector)."
+  [p n x]
+  (let [v (vector p x)]
+    (math/abs (dot v n))))
 
 (defn intersect-line-plane
   [p n l d]
