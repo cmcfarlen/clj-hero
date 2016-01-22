@@ -39,14 +39,15 @@
 (defn game-init
   []
   (-> (world/create [10 10 10])
-      (world/spawn [[0 0 0] [5 5 0]] (world/entity :player))
-      (world/spawn [[1 0 0] [2 2 0]] (world/entity 42))
-      (world/spawn [[0 0 0] [0 0 0]] (-> (world/entity :camera)
+      (world/spawn [5 5 0] (world/entity :player))
+      (world/spawn [2 2 0] (world/entity 42))
+      (world/spawn [0 0 0] (-> (world/entity :camera)
                                          (camera-setup
                                           [0.0 0.0 50.0 50.0]
                                           [0 0 (/ 1920 2) (/ 1080 2)])))
-      (world/spawn [[0 0 0] [3 3 0]] (wall :w1 [3 3 3] [0 1 0] 10))
-      (world/spawn [[0 0 0] [7 7 0]] (wall :w2 [7 7 7] [-1 1 0] 10))))
+      (world/spawn [3 6 0] (wall :w3 [3 6 3] [0 -1 0] 10))
+      (world/spawn [3 3 0] (wall :w1 [3 3 3] [0 1 0] 10))
+      (world/spawn [7 7 0] (wall :w2 [7 7 7] [-1 1 0] 20))))
 
 (defonce game-state (atom (game-init)))
 
@@ -54,6 +55,9 @@
  (vec3/magnitude [1 0 0] 50)
 
  (world/update-entity @game-state :player world/accellerate-entity 0.016 [0 0 0])
+
+ (world/get-entity @game-state :camera)
+
  )
 
 (defn game-update

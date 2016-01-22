@@ -12,42 +12,34 @@
    :chunks {}
    :entities {}})
 
-(defn- fixup-chunk-offset
-  [rel dim]
-  (math/floor (/ rel dim)))
-
-(defn- recanonicalize-position
-  [[[chunk-x chunk-y chunk-z :as old-chunk] [rel-x rel-y rel-z :as old-rel] :as old-position] [dim-x dim-y dim-z :as dim]]
-  (let [offsets [(fixup-chunk-offset rel-x dim-x) (fixup-chunk-offset rel-y dim-y) (fixup-chunk-offset rel-z dim-z)]]
-    [(vec3/add old-chunk offsets) (vec3/subtract old-rel (vec3/multiply offsets dim))]))
+(defn- position->chunk
+  [pos dim]
+  (mapv math/floor (vec3/divide pos dim)))
 
 (defn spawn
-  [world [[chunk-x chunk-y chunk-z :as chunk-p] [rel-x rel-y rel-z :as rel-p] :as world-pos] {:keys [entity/id] :as entity}]
-  (let [[chunk-p rel-p :as world-pos] (recanonicalize-position world-pos (:chunk-dim world))]
+  [world world-pos {:keys [entity/id] :as entity}]
+  (let [chunk-p (position->chunk world-pos (:chunk-dim world))]
     (-> world
         (update-in [:chunks chunk-p] (fn [chunk]
                                        (if chunk
                                          (update-in chunk [:entities] conj id)
                                          {:chunk-pos chunk-p
                                           :entities #{id}})))
-        (assoc-in [:entities id] (assoc entity :world/position world-pos)))))
-
-(comment
- (recanonicalize-position [[5 5 5] [-0.245 0.456 20.432]] [10 10 10])
- (fixup-chunk-offset -0.245 10))
+        (assoc-in [:entities id] (assoc entity :world/position world-pos :world/chunk chunk-p)))))
 
 (defn- rechunk-entity
   [world entity-id]
-  (let [old-position (-> world :entities (get entity-id) :world/position)
-        new-position (recanonicalize-position old-position (:chunk-dim world))]
+  (let [e (-> world :entities (get entity-id))
+        old-chunk (:world/chunk e)
+        new-chunk (position->chunk (:world/position e) (:chunk-dim world))]
     (-> world
-        (update-in [:chunks (first old-position) :entities] disj entity-id)
-        (update-in [:chunks (first new-position)] (fn [chunk]
-                                                    (if chunk
-                                                      (update-in chunk [:entities] conj entity-id)
-                                                      {:chunk-pos (first new-position)
-                                                       :entities #{entity-id}})))
-        (update-in [:entities entity-id] assoc :world/position new-position))))
+        (update-in [:chunks old-chunk :entities] disj entity-id)
+        (update-in [:chunks new-chunk] (fn [chunk]
+                                         (if chunk
+                                           (update-in chunk [:entities] conj entity-id)
+                                           {:chunk-pos new-chunk
+                                            :entities #{entity-id}})))
+        (update-in [:entities entity-id] assoc :world/chunk new-chunk))))
 
 (defn update-entity
   "Update an entity in the world.  f is a fn that takes the entity, the world and any arguments"
@@ -77,8 +69,8 @@
 
 (defn collides?
   [e w dim]
-  (let [ep (chunk->scene (:world/position e) dim)
-        wp (chunk->scene (:world/position w) dim)
+  (let [ep (:world/position e)
+        wp (:world/position w)
         l (/ (:wall/length w) 2)
         n (:wall/n w)
         d (vec3/point-plane-distance wp n ep)
@@ -95,7 +87,7 @@
               (if-let [c (collides? e w dim)]
                 (-> e
                     (update-in [:world/velocity] vec3/reflect (:wall/n w))
-                    #_(assoc-in [:world/position 1] (vec3/add c (vec3/scale (:wall/n w) 0.5)))
+                    #_(assoc-in [:world/position] (vec3/add c (vec3/scale (:wall/n w) 0.5)))
                     )
                 e)) entity (filter :wall/n (-> world :entities vals)))))
 
@@ -105,7 +97,7 @@
   (let [v (entity :world/velocity [0 0 0])
         a (vec3/add a (vec3/scale v -8.0))]
     (-> entity
-        (update-in [:world/position 1] vec3/add (vec3/add
+        (update-in [:world/position] vec3/add (vec3/add
                                                  (vec3/scale a (* 0.5 Δt Δt))
                                                  (vec3/scale v Δt)))
         (update-in [:world/velocity] (fnil vec3/add [0 0 0]) (vec3/scale a Δt))
