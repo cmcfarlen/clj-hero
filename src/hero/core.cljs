@@ -89,6 +89,7 @@
 (defn game-step
   [ts]
   (let [input (input/next-input current-input ts)]
+    #_(render/scene-render game-context (world/get-entity (swap! game-state game-update input) :camera) [[:line {:stroke "#fff"} [0 0 0] [50 50 50]]])
     (render/game-render game-context (swap! game-state game-update input))))
 
 (defn startup-game-loop

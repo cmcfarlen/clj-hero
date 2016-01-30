@@ -80,6 +80,15 @@
     (if (and (> 0 (vec3/dot v n)) (< d 0.5) (< dw l))
       c)))
 
+(defn collision-point
+  [A B v r P n]
+  (let [d (vec3/distance A B)
+        v (vec3/normalize v)
+        num (- (vec3/dot n (vec3/vector A P)) r)
+        den (* d (vec3/dot n v))
+        t (/ num den)]
+    (vec3/add A (vec3/scale v (* d t)))))
+
 (defn collide-walls
   [entity world]
   (let [dim (:chunk-dim world)]
